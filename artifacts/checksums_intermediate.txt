@@ -1,0 +1,1 @@
+1f86c0a6ecbf88156de9ef67486f08ed2adbb0a3eb70c5841d43056c10a9a032  ./target/wasm32-unknown-unknown/release/xanchor.wasm

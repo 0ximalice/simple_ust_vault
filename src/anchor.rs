@@ -5,8 +5,6 @@ use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
 
 use crate::querier::query_aust_exchange_rate;
 
-const ROUNDING_ERR_COMPENSATION: u128 = 1u128;
-
 pub fn calc_ust_to_aust(
     deps: Deps,
     env: &Env,
@@ -15,7 +13,6 @@ pub fn calc_ust_to_aust(
 ) -> StdResult<Uint128> {
     let aust_exchange_rate = query_aust_exchange_rate(deps, &env, &anchor_money_market_addr)?;
     let aust_amount = {
-        let ust_amount = ust_amount + Uint128::from(ROUNDING_ERR_COMPENSATION);
         let aust_amount = Decimal256::from_str(&ust_amount.to_string())? / aust_exchange_rate;
         Uint128::from(aust_amount * Uint256::one())
     };

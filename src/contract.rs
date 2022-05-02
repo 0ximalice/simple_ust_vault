@@ -44,13 +44,13 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // basic flows
+        // basic
         ExecuteMsg::Deposit {} => try_deposit(deps, env, info),
         ExecuteMsg::Redeem { amount } => try_redeem(deps, env, info, amount),
         ExecuteMsg::Rebalance { reserved_target } => {
             try_rebalance(deps, env, info, reserved_target)
         }
-        // additional flows
+        // bonus
         ExecuteMsg::Flashloan { execution } => try_flashloan(deps, env, info, execution),
         ExecuteMsg::FlashloadAssertion { context } => {
             try_flashloan_assertion(deps, env, info, context)
@@ -145,12 +145,12 @@ fn try_rebalance(
 
     let mut response = Response::default().add_attribute("action", "rebalance");
 
-    // query uusd in vault
+    // 1. query uusd in vault
     let ust_balance = query_uusd_balance(deps.as_ref(), &env.contract.address)?;
 
-    // If the current uusd balance greater than minimum uusd reserved amount,
-    // we instantly deposit the difference
     if ust_balance.gt(&reserved_target) {
+        // 2.1 If the current uusd balance greater than minimum uusd reserved amount,
+        // we instantly deposit the difference
         let deposit_amount = ust_balance.checked_sub(reserved_target).unwrap();
         response = response.add_attribute("rebalance:deposit_ust", deposit_amount);
 
@@ -161,7 +161,7 @@ fn try_rebalance(
             funds: vec![Coin::new(deposit_amount.u128(), "uusd")],
         }));
     } else if ust_balance.lt(&reserved_target) {
-        // Otherwise try to redeem more stable from Anchor
+        // 2.2 Otherwise try to redeem more stable from Anchor
         let redeem_ust_amount = reserved_target.checked_sub(ust_balance).unwrap();
         response = response.add_attribute("rebalance:redeem_ust", redeem_ust_amount);
 
@@ -207,21 +207,21 @@ pub fn try_flashloan(
     info: MessageInfo,
     execution: FlashloadExecution,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if !info.sender.eq(&state.owner) {
-        return Err(ContractError::Unauthorized {});
+    // 1. assert loan amount
+    if execution.amount.is_zero() {
+        return Err(ContractError::Generic("invalid loan amount".to_string()));
     }
 
     let mut response = Response::default().add_attribute("action", "flashloan");
 
-    // 1. do we have enough stable?
+    // 2. do we have enough stable?
     let ust_balance = query_uusd_balance(deps.as_ref(), &env.contract.address)?;
     let mut reserved_target = ust_balance;
     if ust_balance.lt(&execution.amount) {
-        // 1.1 fund is not enough, do redemption
+        // 2.1 fund is not enough, do redemption
         reserved_target = execution.amount.checked_add(ust_balance).unwrap();
 
-        // 1.2 rebalance
+        // 2.2 rebalance
         response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::Rebalance { reserved_target })?,
@@ -229,26 +229,23 @@ pub fn try_flashloan(
         }));
     }
 
-    // 2. create loan context
+    // 3. create loan context
     response = response.add_attribute("flashloan:reserved_target", reserved_target);
     let context = FlashloanContext {
         loan_amount: execution.amount,
         stable_before_exec: reserved_target,
     };
 
-    // 3. added user execution
-    let target = if let Some(target) = execution.contract_addr {
-        target
-    } else {
-        info.sender
-    };
+    // 4. added user execution
     response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: target.to_string(),
+        // 🚨 Beward: using customized contract addr lead to exploit CW20
+        // in smart contract by adding increase_allowance in execution msg
+        contract_addr: info.sender.to_string(),
         msg: execution.msg,
         funds: coins(execution.amount.u128(), "uusd"),
     }));
 
-    // 4. added final repay assertion
+    // 5. added final repay assertion
     response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&ExecuteMsg::FlashloadAssertion { context: context })?,

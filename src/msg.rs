@@ -24,7 +24,6 @@ pub enum ExecuteMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct FlashloadExecution {
-    pub contract_addr: Option<Addr>,
     pub msg: Binary,
     pub amount: Uint128,
 }

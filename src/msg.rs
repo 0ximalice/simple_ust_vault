@@ -19,7 +19,7 @@ pub enum ExecuteMsg {
     Rebalance { reserved_target: Uint128 },
     // loan
     Flashloan { execution: FlashloadExecution },
-    FlashloadAssertion { context: FlashloanContext },
+    RepayAssertion { context: FlashloanContext },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

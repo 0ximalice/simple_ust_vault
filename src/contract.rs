@@ -52,9 +52,7 @@ pub fn execute(
         }
         // bonus
         ExecuteMsg::Flashloan { execution } => try_flashloan(deps, env, info, execution),
-        ExecuteMsg::FlashloadAssertion { context } => {
-            try_flashloan_assertion(deps, env, info, context)
-        }
+        ExecuteMsg::RepayAssertion { context } => try_repay_assertion(deps, env, info, context),
     }
 }
 
@@ -236,7 +234,7 @@ pub fn try_flashloan(
         stable_before_exec: reserved_target,
     };
 
-    // 4. added user execution
+    // 4. add user execution
     response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
         // 🚨 Beward: using customized contract addr lead to exploit CW20
         // in smart contract by adding increase_allowance in execution msg
@@ -245,17 +243,17 @@ pub fn try_flashloan(
         funds: coins(execution.amount.u128(), "uusd"),
     }));
 
-    // 5. added final repay assertion
+    // 5. add final repay assertion
     response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&ExecuteMsg::FlashloadAssertion { context: context })?,
+        msg: to_binary(&ExecuteMsg::RepayAssertion { context: context })?,
         funds: vec![],
     }));
 
     Ok(response)
 }
 
-pub fn try_flashloan_assertion(
+pub fn try_repay_assertion(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,

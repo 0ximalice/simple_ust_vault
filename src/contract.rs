@@ -236,7 +236,7 @@ pub fn try_flashloan(
 
     // 4. add user execution
     response = response.add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-        // 🚨 Beward: using customized contract addr lead to exploit CW20
+        // 🚨 Beware: using customized contract addr lead to exploit CW20
         // in smart contract by adding increase_allowance in execution msg
         contract_addr: info.sender.to_string(),
         msg: execution.msg,
